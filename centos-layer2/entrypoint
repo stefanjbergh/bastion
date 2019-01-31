@@ -1,0 +1,40 @@
+#!/bin/bash
+exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+
+echo "Entered entrypoint script"
+PASS_DOCKER_CREDS=false
+if [[ ! -z $DOCKER_REGISTRY ]]; then
+    if [[ -z $DOCKER_REGISTRY_USERNAME || -z $DOCKER_REGISTRY_PASSWORD ]]; then
+        echo "Passed in '\$DOCKER_REGISTRY' environment variable but not '\$DOCKER_REGISTRY_USERNAME' and '\$DOCKER_REGISTRY_PASSWORD'"
+        exit 1
+    else
+        sudo docker login -u $DOCKER_REGISTRY_USERNAME -p $DOCKER_REGISTRY_PASSWORD docker.io
+        if [ $? -eq 0 ]; then
+            PASS_DOCKER_CREDS=true
+        else
+            echo "Invalid credentials or other login failure to Docker registry "+$DOCKER_REGISTRY+" with username "+$DOCKER_REGISTRY_USERNAME
+            exit 1
+        fi
+    fi
+fi
+
+#################
+# This can be removed once duffle bug is resolved
+sudo docker pull $INVOCATION_IMAGE
+#################
+
+DOCKER_CREDS_STRING=""
+if [ $PASS_DOCKER_CREDS ]; then
+    DOCKER_CREDS_STRING="-v /root/.docker/config.json:/root/.docker/config.json:z"
+fi
+sudo docker run -v /var/run/docker.sock:/var/run/docker.sock ${DOCKER_CREDS_STRING} -e DUFFLE_COMMAND $DUFFLE_DOCKER_IMAGE 
+
+# Required variables:
+#   DUFFLE_COMMAND
+#   DUFFLE_DOCKER_IMAGE
+#   INVOCATION_IMAGE (due to bug in current duffle version - this will not be needed once bug is fixed)
+
+# Optional variables:
+#   DOCKER_REGISTRY (If DOCKER_REGISTRY passed in, then associated _USERNAME and _PASSWORD variables required as well)
+#   DOCKER_REGISTRY_USERNAME
+#   DOCKER_REGISTRY_PASSWORD

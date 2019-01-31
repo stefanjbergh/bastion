@@ -1,0 +1,27 @@
+{
+    "variables": {
+      "source_ami_image": "ami-086b3d91fbe1231a4"
+    },
+    "builders": [{
+      "type": "amazon-ebs",
+      "access_key": "{{user `aws_access_key`}}",
+      "secret_key": "{{user `aws_secret_key`}}",
+      "region": "us-east-1",
+      "source_ami": "{{user `source_ami_image`}}",
+      "instance_type": "t2.micro",
+      "ssh_username": "centos",
+      "ami_name": "packer-bastion-layer2 {{timestamp}}"
+    }],
+    "provisioners": [
+      {
+        "type": "file",
+        "source": "entrypoint",
+        "destination": "/home/centos/entrypoint"
+      },
+      {
+        "type": "shell",
+        "script": "setup.sh"
+      }]
+  }
+  
+  

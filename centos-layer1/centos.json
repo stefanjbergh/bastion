@@ -1,0 +1,22 @@
+{
+    "variables": {
+      "source_ami_image": "ami-9887c6e7"
+    },
+    "builders": [{
+      "type": "amazon-ebs",
+      "access_key": "{{user `aws_access_key`}}",
+      "secret_key": "{{user `aws_secret_key`}}",
+      "region": "us-east-1",
+      "source_ami": "{{user `source_ami_image`}}",
+      "instance_type": "t2.micro",
+      "ssh_username": "centos",
+      "ami_name": "packer-bastion-layer1 {{timestamp}}"
+    }],
+    "provisioners": [
+      {
+        "type": "shell",
+        "script": "setup.sh"
+      }]
+  }
+  
+  
