@@ -1,7 +1,33 @@
 #!/bin/bash
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+echo "Bastion node initialized, starting entrypoint..."
 
-echo "Entered entrypoint script"
+AWS_ROLE=`curl http://169.254.169.254/latest/meta-data/iam/security-credentials/`
+AWS_CREDS=`curl http://169.254.169.254/latest/meta-data/iam/security-credentials/$AWS_ROLE/`
+export AWS_ACCESS_KEY_ID=`echo $AWS_CREDS | python -c "import sys, json; print json.load(sys.stdin)['AccessKeyId']"`
+export AWS_SECRET_ACCESS_KEY=`echo $AWS_CREDS | python -c "import sys, json; print json.load(sys.stdin)['SecretAccessKey']"`
+export AWS_SESSION_TOKEN=`echo $AWS_CREDS | python -c "import sys, json; print json.load(sys.stdin)['Token']"`
+
+#echo $AWS_ACCESS_KEY_ID
+#echo $AWS_SECRET_ACCESS_KEY
+#echo $AWS_SESSION_TOKEN
+
+AVAILABILITY_ZONE=`curl http://169.254.169.254/latest/meta-data/placement/availability-zone`
+export AWS_DEFAULT_REGION=${AVAILABILITY_ZONE%?}
+AWS_INSTANCE_ID=`curl http://169.254.169.254/latest/meta-data/instance-id`
+#aws ec2 describe-tags --filters "Name=resource-id,Values=i-5f4e3d2a" "Name=Value,Values=DB_PORT"
+INVOCATION_IMAGE=`/usr/local/bin/aws ec2 describe-instances --filters "Name=instance-id,Values=$AWS_INSTANCE_ID" --query "Reservations[*].Instances[*].[Tags[?Key=='InvocationImage'].Value]" | tr -d '[]" \n'`
+#TODO Error check invocation image
+INVOCATION_COMMAND=`/usr/local/bin/aws ec2 describe-instances --filters "Name=instance-id,Values=$AWS_INSTANCE_ID" --query "Reservations[*].Instances[*].[Tags[?Key=='InvocationCommand'].Value]" | tr -d '[]" \n'`
+#TODO Error check invocation command
+
+
+#https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-instances.html
+#--tag-specifications 'ResourceType=instance,Tags=[{Key=InvocationImage,Value=raviydevops/invocation_image_crud:2.0.0},{Key=InvocationCommand,Value=install}]'
+#docker run -it -e AWS_ACCESS_KEY_ID='' -e AWS_SECRET_ACCESS_KEY='' -e AWS_DEFAULT_REGION='us-east-2' -v /var/run/docker.sock:/var/run/docker.sock  raviydevops/invocation_image_crud:1.0.0 install
+#echo $invocationImage | sed 's/[][" ]//g'
+#echo $invocationImage | tr -d '[]" '
+
 PASS_DOCKER_CREDS=false
 if [[ ! -z $DOCKER_REGISTRY ]]; then
     if [[ -z $DOCKER_REGISTRY_USERNAME || -z $DOCKER_REGISTRY_PASSWORD ]]; then
@@ -20,18 +46,28 @@ fi
 
 #################
 # This can be removed once duffle bug is resolved
+
+
+#DOCKER_CREDS_STRING=""
+#if [ $PASS_DOCKER_CREDS ]; then
+#    DOCKER_CREDS_STRING="-v /root/.docker/config.json:/root/.docker/config.json:z"
+#fi
+#sudo docker run -v /var/run/docker.sock:/var/run/docker.sock ${DOCKER_CREDS_STRING} -e DUFFLE_COMMAND -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN $DUFFLE_DOCKER_IMAGE 
+#!/bin/bash
+echo "Pulling invocation image: '"+ $INVOCATION_IMAGE +"'"
 sudo docker pull $INVOCATION_IMAGE
 #################
-
-DOCKER_CREDS_STRING=""
-if [ $PASS_DOCKER_CREDS ]; then
-    DOCKER_CREDS_STRING="-v /root/.docker/config.json:/root/.docker/config.json:z"
-fi
-sudo docker run -v /var/run/docker.sock:/var/run/docker.sock ${DOCKER_CREDS_STRING} -e DUFFLE_COMMAND $DUFFLE_DOCKER_IMAGE 
+echo "Pulled invocation image. Running it with command: '"+ $INVOCATION_COMMAND +"'"
+#docker run -d -v /var/run/docker.sock:/var/run/docker.sock $INVOCATION_IMAGE $INVOCATION_COMMAND
+#sudo docker run -d -v /var/run/docker.sock:/var/run/docker.sock -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e AWS_DEFAULT_REGION $INVOCATION_IMAGE $INVOCATION_COMMAND
+sudo docker run -d -v /var/run/docker.sock:/var/run/docker.sock -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" -e "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN" -e "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" $INVOCATION_IMAGE $INVOCATION_COMMAND
 
 # Required variables:
-#   DUFFLE_COMMAND
-#   DUFFLE_DOCKER_IMAGE
+#   INVOCATION_COMMAND
+#   IMVOCATION_IMAGE
+#   
+#   
+#   
 #   INVOCATION_IMAGE (due to bug in current duffle version - this will not be needed once bug is fixed)
 
 # Optional variables:

@@ -1,6 +1,6 @@
 {
     "variables": {
-      "source_ami_image": "ami-086b3d91fbe1231a4"
+      "source_ami_image": "ami-0b7bb3e8ba5dd7a3c"
     },
     "builders": [{
       "type": "amazon-ebs",
